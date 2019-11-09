@@ -8,9 +8,12 @@ import operator
 
 # Globals
 Fsigma = 100
-Ft = 0.15
+Ft = 0.25
 n = 3 # nxn dimensiunea ferestrei de filtrare
 nSq = pow(n, 2)
+
+affectedPixels = []
+detectedAffectedPixels = []
 
 def add_mixed_noise(I):
     mean = 0
@@ -27,7 +30,8 @@ def add_mixed_noise(I):
             linePos=int(linePos)
             colPos=np.random.randint(0,I.shape[1], [1,1])
             colPos=int(colPos)
-            I[linePos,colPos,channel]=(int(np.random.randint(0, 2, [1,1])))*255 # random black or white    
+            I[linePos,colPos,channel]=(int(np.random.randint(0, 2, [1,1])))*255 # random black or white
+            affectedPixels.append((linePos,colPos))
     return I
 
 # functie de similaritate fuzzy
@@ -36,7 +40,7 @@ def fuzzy_similarity_function(Fi, Fj):
     
 #algoritmul de filtrare (reducere de zgomot mixt - impulsiv si gaussian)
 def fuzzy_peer_groups_algorithm(I, x, y):
-    print("************")
+#    print("************")
     # window = I[i-borderSize:i+borderSize+1, j-borderSize:j+borderSize+1, :]
     F0 = I[x,y,:]
     # un dictionar in care se retin coordonatele pixelului (sub forma de cheie) 
@@ -47,7 +51,7 @@ def fuzzy_peer_groups_algorithm(I, x, y):
         for j in range(y-borderSize, y+borderSize+1):
             Fj = I[i,j,:]
             similarityDict[(i,j)] = fuzzy_similarity_function(F0, Fj)
-    print(similarityDict)
+#    print(similarityDict)
     # Se sorteaza descrescator pixelii in functie de similaritate
     sorted_similarityDict = dict(sorted(similarityDict.items(), key=operator.itemgetter(1),reverse=True))
     
@@ -67,10 +71,11 @@ def fuzzy_peer_groups_algorithm(I, x, y):
     m_optim = C_FR1.index(max(C_FR1))+1
  
     # C_FR2 este certitudinea pixelului central (Fuzzy Rule 2)
-    C_FR2 = C_FR1[m_optim]
+    C_FR2 = C_FR1[m_optim-1]
     
     if (C_FR2 < Ft):
         # Pixelul F0 este afectat de zgomot. Trebuie inlocuit prin VMF
+        detectedAffectedPixels.append((x, y))
  
 #    print("sorted_similarityDict:")
 #    print(sorted_similarityDict)
@@ -88,7 +93,6 @@ imgWithNoise = add_mixed_noise(imgWithNoise)
 plt.imshow(img)        
 plt.figure() # figsize=(10,10)
 plt.imshow(imgWithNoise)
-print(fuzzy_similarity_function(img[1,32,:], img[77,8,:]))
 
 # se parcurge imaginea pixel cu pixel 
 # (excluzand bordura de (n-1)/2 pixeli, nxn este dimensiunea ferestrei de filtrare)
@@ -99,4 +103,15 @@ for i in range(borderSize, imgWithNoise.shape[0]-borderSize):
         # F0 = imgWithNoise[i,j,:] (pixelul central)
         fuzzy_peer_groups_algorithm(imgWithNoise, i, j)
         
-    
+affectedPixels = set(affectedPixels)
+detectedAffectedPixels = set(detectedAffectedPixels)
+
+totalAffectedPixels = len(affectedPixels)
+totalDetectedAffectedPixels = len(detectedAffectedPixels)
+counter = 0
+for x in affectedPixels:
+    if(x in detectedAffectedPixels):
+        counter += 1
+print("Total affected pixel : {}".format(totalAffectedPixels))
+print("Total detected pixel : {}".format(totalDetectedAffectedPixels))
+print("Total GOOD detected pixel : {}".format(counter))
