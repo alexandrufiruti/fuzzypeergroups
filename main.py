@@ -19,13 +19,13 @@ detectedAffectedPixels = []
 
 def add_mixed_noise(I):
     mean = 0
-    stdDev = 3
+    stdDev = 10
     gaussianNoise = np.random.normal(mean,stdDev,[I.shape[0],I.shape[1],3])
     I = I + gaussianNoise
     I = np.clip(I, 0, 255)
     I = I.astype('uint8')
     pImpNoise = 0.1 # procent de pixeli afectati de zgomot impulsiv per canal de culoare
-    N = int(pImpNoise*(I.shape[0]*I.shape[1]) ) # numar de pixeli afectati de zgomot impulsiv
+    N = int(pImpNoise*(I.shape[0]*I.shape[1])/3 ) # numar de pixeli afectati de zgomot impulsiv
     for channel in range(3):
         for j in range(N):
             linePos=np.random.randint(0,I.shape[0], [1,1])
@@ -42,7 +42,6 @@ def fuzzy_similarity_function(Fi, Fj):
     
 #algoritmul de filtrare (reducere de zgomot mixt - impulsiv si gaussian)
 def fuzzy_peer_groups_algorithm(I, x, y):
-#    print("************")
     # window = I[i-borderSize:i+borderSize+1, j-borderSize:j+borderSize+1, :]
     F0 = I[x,y,:]
     # un dictionar in care se retin coordonatele pixelului (sub forma de cheie) 
@@ -57,7 +56,7 @@ def fuzzy_peer_groups_algorithm(I, x, y):
             G.append(Fj[1])
             B.append(Fj[2])
             similarityDict[(i,j)] = fuzzy_similarity_function(F0, Fj)
-#    print(similarityDict)
+
     # Se sorteaza descrescator pixelii in functie de similaritate
     sorted_similarityDict = dict(sorted(similarityDict.items(), key=operator.itemgetter(1),reverse=True))
     # C este functia ce arata gradul de apartenenta a pixelului la grupul de similaritate (fct descrescatoare)
@@ -86,25 +85,27 @@ def fuzzy_peer_groups_algorithm(I, x, y):
                 neighbourPixels[(i,j)] = np.linalg.norm(I[i,j,:]-medianPixel, ord=2)
         sorted_neighbourPixels = dict(sorted(neighbourPixels.items(), key=operator.itemgetter(1)))
         xy = list(sorted_neighbourPixels.keys())[0]
-        return I[xy[0],xy[1],:]
+        pixelWithoutNoise = I[xy[0],xy[1],:]
     else:
-        return F0
-#    print("sorted_similarityDict:")
-#    print(sorted_similarityDict)
-#    print("C:")
-#    print(C)
-#    print("A:")
-#    print(A)
-#    print("L:")
-#    print(L)
-#    print(m_optim)
+        pixelWithoutNoise = F0
+    
+    pixelsValuesInFuzzyPeerGroup = [I[i] for i in list(sorted_similarityDict.keys())[:m_optim]]
+    weightsInFuzzyPeerGroup = list(sorted_similarityDict.values())[:m_optim]
+    numerator = pixelWithoutNoise
+    denominator = 1
+    for i in range(1, m_optim):
+        numerator = numerator + weightsInFuzzyPeerGroup[i]*pixelsValuesInFuzzyPeerGroup[i]
+        denominator = denominator + weightsInFuzzyPeerGroup[i]
+    pixelWithoutNoise = numerator/denominator
+    return pixelWithoutNoise
 
 img = io.imread('lena.png')
 imgWithNoise = img.copy()
 imgWithNoise = add_mixed_noise(imgWithNoise)
 imgWithoutNoise = imgWithNoise.copy()
-plt.imshow(img)        
-plt.figure() # figsize=(10,10)
+plt.figure(figsize=(10,10))
+plt.imshow(img)
+plt.figure(figsize=(10,10))
 plt.imshow(imgWithNoise)
 
 # se parcurge imaginea pixel cu pixel 
@@ -129,5 +130,5 @@ print("Total affected pixel : {}".format(totalAffectedPixels))
 print("Total detected pixel : {}".format(totalDetectedAffectedPixels))
 print("Total GOOD detected pixel : {}".format(counter))
 
-plt.figure() # figsize=(10,10)
-plt.imshow(imgWithoutNoise)
+#plt.figure(figsize=(10,10))
+#plt.imshow(imgWithoutNoise) 
