@@ -4,18 +4,43 @@
 # Includes
 import numpy as np 
 from skimage import io,color 
+import skimage
 import matplotlib.pyplot as plt
 import operator
 import math
 
 # Globals
 Fsigma = 100
-Ft = 0.25
+Ft = 0.15
 n = 3 # nxn dimensiunea ferestrei de filtrare
 nSq = pow(n, 2)
 
 affectedPixels = []
 detectedAffectedPixels = []
+
+def marginal_median_filter(I):
+    # Filtru median marginal
+    newI = I.copy()
+    ch = I.shape[2]
+    for i in range(1, I.shape[0]-1):
+        for j in range(1, I.shape[1]-1):
+            red = np.sort(I[i-1:i+2,j-1:j+2,0], axis=None)[4]
+            green = np.sort(I[i-1:i+2,j-1:j+2,1], axis=None)[4]
+            blue = np.sort(I[i-1:i+2,j-1:j+2,2], axis=None)[4]
+            newI[i,j,:] = np.array([red,green,blue])
+    return newI
+
+def marginal_arithmetic_mean_filter(I):
+    # Filtru de medie aritmetica marginal de dimensiune 3x3
+    newI = I.copy()
+    ch = I.shape[2]
+    for i in range(1, I.shape[0]-1):
+        for j in range(1, I.shape[1]-1):
+            redMean = int(np.mean(I[i-1:i+2,j-1:j+2,0]))
+            greenMean = int(np.mean(I[i-1:i+2,j-1:j+2,1]))
+            blueMean = int(np.mean(I[i-1:i+2,j-1:j+2,2]))
+            newI[i,j,:] = np.array([redMean,greenMean,blueMean])
+    return newI
 
 def add_mixed_noise(I):
     mean = 0
@@ -97,6 +122,8 @@ def fuzzy_peer_groups_algorithm(I, x, y):
         numerator = numerator + weightsInFuzzyPeerGroup[i]*pixelsValuesInFuzzyPeerGroup[i]
         denominator = denominator + weightsInFuzzyPeerGroup[i]
     pixelWithoutNoise = numerator/denominator
+    pixelWithoutNoise = [int(x) for x in pixelWithoutNoise]
+    pixelWithoutNoise = np.clip(pixelWithoutNoise, a_min=0, a_max=255)
     return pixelWithoutNoise
 
 img = io.imread('lena.png')
@@ -105,8 +132,21 @@ imgWithNoise = add_mixed_noise(imgWithNoise)
 imgWithoutNoise = imgWithNoise.copy()
 plt.figure(figsize=(10,10))
 plt.imshow(img)
+plt.title("Imagine originala")
 plt.figure(figsize=(10,10))
 plt.imshow(imgWithNoise)
+plt.title("Imagine afectata de zgomot mixt")
+
+plt.figure(figsize=(10,10))
+I1 = marginal_median_filter(imgWithNoise)
+plt.imshow(I1)
+plt.title("Imagine dupa filtru median marginal")
+
+plt.figure(figsize=(10,10))
+I2 = marginal_arithmetic_mean_filter(I1) 
+plt.imshow(marginal_median_filter(imgWithNoise))
+plt.title("Imagine dupa filtru de medie aritmetica marginal")
+
 
 # se parcurge imaginea pixel cu pixel 
 # (excluzand bordura de (n-1)/2 pixeli, nxn este dimensiunea ferestrei de filtrare)
@@ -116,19 +156,16 @@ for i in range(borderSize, imgWithNoise.shape[0]-borderSize):
     for j in range(borderSize, imgWithNoise.shape[1]-borderSize):
         # F0 = imgWithNoise[i,j,:] (pixelul central)
         imgWithoutNoise[i,j,:] = fuzzy_peer_groups_algorithm(imgWithNoise, i, j)
-        
-affectedPixels = set(affectedPixels)
-detectedAffectedPixels = set(detectedAffectedPixels)
+         
+plt.figure(figsize=(10,10))
+plt.imshow(imgWithoutNoise) 
+plt.title("Imagine dupa filtrarea cu algoritmul specificat")
 
-totalAffectedPixels = len(affectedPixels)
-totalDetectedAffectedPixels = len(detectedAffectedPixels)
-counter = 0
-for x in affectedPixels:
-    if(x in detectedAffectedPixels):
-        counter += 1
-print("Total affected pixel : {}".format(totalAffectedPixels))
-print("Total detected pixel : {}".format(totalDetectedAffectedPixels))
-print("Total GOOD detected pixel : {}".format(counter))
-
-#plt.figure(figsize=(10,10))
-#plt.imshow(imgWithoutNoise) 
+print("")
+print("PSNR pentru filtrarea clasica cu filtru median marginal: {}".format(skimage.measure.compare_psnr(img,I1)))
+print("PSNR pentru filtrarea clasica cu filtru de medie aritmetica marginal: {}".format(skimage.measure.compare_psnr(img,I2)))
+print("PSNR pentru filtrarea cu algoritmul specificat: {}".format(skimage.measure.compare_psnr(img,imgWithoutNoise)))
+print("")
+print("MSE pentru filtrarea clasica cu filtru median marginal: {}".format(skimage.measure.compare_mse(img,I1)))
+print("MSE pentru filtrarea clasica cu filtru de medie aritmetica marginal: {}".format(skimage.measure.compare_mse(img,I2)))
+print("MSE pentru filtrarea cu algoritmul specificat: {}".format(skimage.measure.compare_mse(img,imgWithoutNoise)))
